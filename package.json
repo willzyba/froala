@@ -1,0 +1,34 @@
+{
+  "name": "@codecogs/eqneditor-froala",
+  "version": "1.0.0",
+  "description": "CodeCogs Equation Editor plugin for Froala Editor 3 and 4",
+  "keywords": [
+    "froala",
+    "froala-editor",
+    "froala-plugin",
+    "equation",
+    "equation-editor",
+    "latex",
+    "mathml",
+    "maths"
+  ],
+  "homepage": "https://editor.codecogs.com/docs/2-plugins",
+  "main": "eqneditor.js",
+  "files": [
+    "eqneditor.js",
+    "eqneditor.css",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "open-cli ./example.html"
+  },
+  "author": "CodeCogs",
+  "license": "MIT",
+  "peerDependencies": {
+    "froala-editor": ">=3.0.0"
+  },
+  "devDependencies": {
+    "froala-editor": "^4.2.0",
+    "open-cli": "^7.1.0"
+  }
+}

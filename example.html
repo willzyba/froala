@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<!--
+  A complete, working example of Froala Editor with the CodeCogs Equation Editor plugin.
+
+  Run `npm install` in this directory first (that fetches Froala Editor into node_modules),
+  then `npm start`, or simply open this file in a browser.
+
+  The plugin fetches the Equation Editor itself from editor.codecogs.com, so this page needs a
+  network connection; nothing else has to be built.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CodeCogs Equation Editor - Froala example</title>
+
+    <link rel="stylesheet" href="./node_modules/froala-editor/css/froala_editor.pkgd.min.css">
+    <script src="./node_modules/froala-editor/js/froala_editor.pkgd.min.js"></script>
+    <link rel="stylesheet" href="./eqneditor.css">
+    <script src="./eqneditor.js"></script>
+
+    <style>
+        body { font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+               max-width: 900px; margin: 0 auto; padding: 24px; color: #1c2530; }
+        p.hint { color: #52606d; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <h1>CodeCogs Equation Editor in Froala</h1>
+    <p class="hint">
+        Press the <strong>fx</strong> button on the toolbar to insert an equation, or
+        click the equation below to edit it.
+    </p>
+
+    <div id="editor">
+        <p>Sample text and an equation:</p>
+        <p><img src="https://latex.codecogs.com/svg.image?\sum_{i=0}^{n}a_i^2&plus;b"
+                alt="\sum_{i=0}^{n}a_i^2+b"></p>
+        <p>Click the equation above to edit it.</p>
+    </div>
+
+    <script>
+        new FroalaEditor( '#editor', {
+            toolbarButtons: [ 'bold', 'italic', '|', 'eqneditor', '|', 'undo', 'redo' ],
+            attribution: false,
+
+            // Default view: the maths view, with the LaTeX markup view a toggle in the
+            // dialog - the author's last choice (a cookie) overrides this on their next visit.
+            eqneditorShowLatex: false,
+
+            // Points this dev example at the local eqneditor-v5-www dev server rather than
+            // production, so in-progress features (the new toolbar, MathView-by-default) show
+            // up here before they are live at editor.codecogs.com. Remove both for production.
+            eqneditorScriptUrl: 'http://localhost:8010/eqneditor.api.min.js',
+            eqneditorCssUrl: 'http://localhost:8010/eqneditor.css'
+        } );
+    </script>
+</body>
+</html>
