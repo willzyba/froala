@@ -37,7 +37,7 @@ All optional, passed alongside Froala's own options:
 | Option | Default | Meaning |
 |---|---|---|
 | `eqneditorShowLatex` | `true` | Whether the LaTeX markup pane starts visible beneath the maths view. |
-| `eqneditorServer` | `'fxeditor.codecogs.com'` | Host the Equation Editor's own code is loaded from. Change this if you run your own copy. |
+| `eqneditorServer` | `'fxtex.codecogs.com'` | Host the Equation Editor's own code is loaded from. Change this if you run your own copy. |
 | `eqneditorRenderUrl` | `'https://latex.codecogs.com'` | The rendering service that turns an equation into an image. |
 | `eqneditorInsertAs` | `'url'` | How a saved equation is written into the document: `'url'` (an `<img>`), `'latex'` (`$...$`/`$$...$$`, needs [fxTeX](https://editor.codecogs.com/docs/0-fxtex.php), KaTeX or MathJax on the published page), or `'mathml'` (final markup, needs the stylesheet below). |
 | `eqneditorLatexDisplay` | `true` | With `eqneditorInsertAs: 'latex'`, whether to use `$$` (display) or `$` (inline) delimiters. |
@@ -58,7 +58,7 @@ Browsers' own MathML does not cover everything the converter produces, so a page
 `eqneditorInsertAs: 'mathml'` output needs this line - the same file fxTeX ships:
 
 ```html
-<link rel="stylesheet" href="https://fxeditor.codecogs.com/fxtex.css">
+<link rel="stylesheet" href="https://fxtex.codecogs.com/fxtex.css">
 ```
 
 The plugin loads it into the editing view for you; it cannot add it to the page that finally
