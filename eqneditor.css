@@ -3,7 +3,7 @@
  *
  * Froala has no built-in large-dialog API (its own popups are sized for small toolbar
  * dropdowns), so this plugin draws a minimal modal of its own.
- * Everything the modal wraps is styled by eqneditor.css, loaded separately from
+ * Everything the modal wraps is styled by fxeditor.css, loaded separately from
  * the editor host (see eqneditor.js); this file is only the frame around it.
  */
 
