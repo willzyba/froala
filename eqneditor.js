@@ -9,7 +9,7 @@
  *       toolbarButtons: ['bold', 'italic', '|', 'eqneditor'],
  *
  *       // Optional:
- *       eqneditorServer: 'editor.codecogs.com',  // where the editor's own code is served from
+ *       eqneditorServer: 'fxeditor.codecogs.com',  // where the editor's own code is served from
  *       eqneditorRenderUrl: 'https://latex.codecogs.com'   // where equations are rendered
  *   });
  *
@@ -47,7 +47,7 @@
         'mtable', 'mtr', 'mtd', 'mlabeledtr', 'maction'
     ];
 
-    var DEFAULT_EDITOR_HOST = 'editor.codecogs.com';
+    var DEFAULT_EDITOR_HOST = 'fxeditor.codecogs.com';
     var DEFAULT_RENDER_URL = 'https://latex.codecogs.com';
 
     // Same fx wordmark used by the CKEditor 5 and TinyMCE plugins, as the two <path> elements
@@ -147,7 +147,7 @@
 
     // Gaps in the shared eqneditor.css (loaded separately, asynchronously, from the host
     // configured above) this dialog needs but can't assume it will get: editor.codecogs.com,
-    // the default host, currently serves an older stylesheet that predates the CCEqnEditor/
+    // the old default host and still configurable, serves an older stylesheet that predates the CCEqnEditor/
     // CCMathViewHost/CCLatexInput class names entirely (only a local dev mirror does not have
     // this gap), so the maths/LaTeX mutual-exclusion is written defensively here rather than
     // left to eqneditor.css. !important throughout, injected once rather than relying on load
@@ -213,6 +213,41 @@
     }
 
     // Re-asserts the API's own .CCMathView/.fxtex rules, which host resets and revert-layer override.
+    // The `design` option (see the README): how the editor looks, set by the site rather than the
+    // author. The toolbar's rows and scale go to Toolbar.link() itself; everything else is applied
+    // here, once the editor is mounted - CSS scoped to this editor's root, then the starting state of
+    // the LaTeX toggle and the "Insert as" menu.
+    var designCount = 0;
+    function applyDesign( root, design, latexToggle, insertSelect ) {
+        if ( !root || !design ) return;
+        if ( !root.id ) root.id = 'cc-eqn-design-' + ( ++designCount );
+        var sel = '#' + root.id, css = '';
+        var colour = String( design.colour || '' );
+        if ( /^(#[0-9a-f]{3,8}|[a-z]+)$/i.test( colour ) ) {
+            css += sel + ' { --cc-accent: ' + colour + ';' +
+                ' --cc-accent-soft: color-mix(in srgb, ' + colour + ' 11%, #fff);' +
+                ' --cc-accent-soft-ring: color-mix(in srgb, ' + colour + ' 28%, #fff);' +
+                ' --cc-accent-mid: color-mix(in srgb, ' + colour + ' 22%, #fff);' +
+                ' --cc-accent-mid-ring: color-mix(in srgb, ' + colour + ' 43%, #fff); }';
+        }
+        if ( Number( design.mathSize ) > 0 ) css += sel + ' .CCMathView { font-size: ' + Number( design.mathSize ) + 'px !important; }';
+        if ( Number( design.latexSize ) > 0 ) css += sel + ' .CCLatexInput { font-size: ' + Number( design.latexSize ) + 'px !important; }';
+        if ( design.toolbar === false ) css += sel + ' .CCToolbar { display: none !important; }';
+        if ( design.history === false ) css += sel + ' .CCEditorBar { display: none !important; }';
+        if ( css ) {
+            var style = document.createElement( 'style' );
+            style.textContent = css;
+            root.appendChild( style );
+        }
+        if ( insertSelect && design.insertAs && insertSelect.querySelector( 'option[value="' + design.insertAs + '"]' ) ) {
+            insertSelect.value = design.insertAs;
+        }
+        if ( latexToggle && design.latex && !latexToggle.checked && !latexToggle.disabled ) {
+            latexToggle.checked = true;
+            latexToggle.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+        }
+    }
+
     function apiMathRules() {
         var out = '';
         for ( var i = 0; i < document.styleSheets.length; i++ ) {
@@ -311,6 +346,7 @@
         var origin = /^https?:\/\//.test( host ) ? host.replace( /\/+$/, '' ) : 'https://' + host;
         var renderUrl = opts.eqneditorRenderUrl || DEFAULT_RENDER_URL;
         var licence = opts.eqneditorLicence || '';
+        var design = opts.eqneditorDesign || {};
         var scriptUrl = opts.eqneditorScriptUrl || ( origin + '/eqneditor.api.min.js' );
         var cssUrl = opts.eqneditorCssUrl || ( origin + '/eqneditor.css' );
         var mathmlCssUrl = opts.eqneditorMathmlCssUrl || ( origin + '/fxtex.css' );
@@ -351,7 +387,7 @@
                 .addOutput( eqOutput )
                 .addHistoryMenu( new EqEditor.History( ids.history ) );
 
-            eqToolbar = EqEditor.Toolbar.link( ids.toolbar ).addTextArea( eqTextArea );
+            eqToolbar = EqEditor.Toolbar.link( ids.toolbar, design.toolbar || 'default', design.toolbarScale || 1 ).addTextArea( eqTextArea );
 
             var latexToggle = document.querySelector( '#' + ids.overlay + ' input[data-latex-toggle]' );
 
@@ -370,6 +406,9 @@
 
             document.querySelector( '#' + ids.overlay + ' input[data-inline-toggle]' )
                 .addEventListener( 'change', function ( e ) { applyInline( e.target.checked ); } );
+
+            applyDesign( document.getElementById( ids.root ), design, latexToggle,
+                document.querySelector( '#' + ids.overlay + ' [data-insert-mode]' ) );
         }
 
         // referrerpolicy="origin" rather than leaving it to the page's own Referrer-Policy:
