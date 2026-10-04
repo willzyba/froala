@@ -343,6 +343,26 @@
         }
     }
 
+    // Ready to type into, with its cursor showing: the MathView (or the LaTeX pane, when that is the
+    // one showing) takes focus as the dialog opens - otherwise focus stays on whatever opened it.
+    // The API draws the MathView's caret where the cursor is at that moment and only redraws it on an
+    // edit or on focus, but a dialog goes on settling after it opens (fonts arrive, the toolbar fits
+    // itself to its row) and moves the equation out from under it. Its focus handler only redraws
+    // (the cursor stays where it is), so it is fired again whenever the editing area changes size.
+    function focusEditor( root ) {
+        if ( !root ) return;
+        var pane = root.querySelector( root.getAttribute( 'data-latex' ) === 'on' ? '.CCLatexInput' : '.CCMathView' );
+        if ( pane ) pane.focus( { preventScroll: true } );
+        var view = root.querySelector( '.CCMathView' ), host = view && view.parentElement;
+        if ( host && !host.ccCaretWatch && typeof ResizeObserver !== 'undefined' ) {
+            host.ccCaretWatch = new ResizeObserver( function () {
+                var mv = host.querySelector( '.CCMathView' );
+                if ( mv && document.activeElement === mv ) mv.dispatchEvent( new FocusEvent( 'focus' ) );
+            } );
+            host.ccCaretWatch.observe( host );
+        }
+    }
+
     function apiMathRules() {
         var out = '';
         for ( var i = 0; i < document.styleSheets.length; i++ ) {
@@ -572,6 +592,7 @@
                 eqTextArea.clear();
                 if ( latex ) eqTextArea.insert( latex, latex.length );
                 eqTextArea.notifyOutputs();
+                focusEditor( document.getElementById( ids.root ) );
             } ).catch( function ( err ) {
                 console.error( err );
                 close();
@@ -612,6 +633,9 @@
                 if ( target.nodeName.toLowerCase() === 'img' ) {
                     var match = target.src.match( /(gif|svg|png)\.image\?(.*)/ );
                     if ( match ) {
+                        // The press's own default would move focus to where it landed - under the
+                        // dialog by then - taking it from the equation editor (see focusEditor()).
+                        e.preventDefault();
                         editor.popups.hideAll();
                         showDialog( decodeEquation( match[ 2 ] ), target );
                     }
@@ -621,7 +645,10 @@
                 var math = target.closest && target.closest( 'math[title]' );
                 if ( math ) {
                     var eqLatex = math.getAttribute( 'title' ).trim();
-                    if ( eqLatex ) showDialog( eqLatex, math );
+                    if ( eqLatex ) {
+                        e.preventDefault();
+                        showDialog( eqLatex, math );
+                    }
                 }
             } );
         }
