@@ -217,6 +217,48 @@
     // author. The toolbar's rows and scale go to Toolbar.link() itself; everything else is applied
     // here, once the editor is mounted - CSS scoped to this editor's root, then the starting state of
     // the LaTeX toggle and the "Insert as" menu.
+    // The dialog's size when the design does not set one: about 700 by 450 pixels.
+    var DEFAULT_WIDTH = 700, DEFAULT_HEIGHT = 450;
+    function designWidth( design ) { return Number( design && design.width ) > 0 ? Number( design.width ) : DEFAULT_WIDTH; }
+    function designHeight( design ) { return Number( design && design.height ) > 0 ? Number( design.height ) : DEFAULT_HEIGHT; }
+    // Gives an inserted image its size in em once the API has read it (Output.imageSize()): set on
+    // the image after it goes in, since waiting before inserting it would lose the host's selection.
+    // Marked with data-cc-size until then; an API without imageSize() leaves the image as it was.
+    var sizingCount = 0;
+    function sizeImage( output, apply ) {
+        if ( !output || typeof output.imageSize !== 'function' ) return '';
+        var mark = 'cc-size-' + ( ++sizingCount ) + '-' + Date.now();
+        output.imageSize().then( function ( size ) { apply( mark, size ); } );
+        return ' data-cc-size="' + mark + '"';
+    }
+    // An equation's own size, against a normal one (Output.setEquationSize()): normal is whatever
+    // the site's .fxtex rule makes it, and this scales one equation on top. Chosen in the dialog's
+    // Size control when the design shows it (design.sizeControl); otherwise an equation being edited
+    // keeps the size it had.
+    var SIZES = [ 50, 75, 100, 125, 150, 200, 300 ];
+    function sizeOptions() {
+        return SIZES.map( function ( pct ) {
+            return '<option value="' + pct + '"' + ( pct === 100 ? ' selected' : '' ) + '>' + pct + '%</option>';
+        } ).join( '' );
+    }
+    function showSize( select, scale ) {
+        if ( !select ) return;
+        var pct = String( Math.round( scale * 100 ) );
+        if ( !select.querySelector( 'option[value="' + pct + '"]' ) ) {
+            var option = document.createElement( 'option' );
+            option.value = pct;
+            option.textContent = pct + '%';
+            select.appendChild( option );
+        }
+        select.value = pct;
+    }
+    // The size an equation on the page was inserted at - read once the API has loaded, which may
+    // be after the double-click that asked for it. 1 without one.
+    function sizeOf( el ) {
+        return el && window.EqEditor && EqEditor.Output && typeof EqEditor.Output.equationSizeOf === 'function'
+            ? EqEditor.Output.equationSizeOf( el ) : 1;
+    }
+
     var designCount = 0;
     function applyDesign( root, design, latexToggle, insertSelect ) {
         if ( !root || !design ) return;
@@ -245,9 +287,9 @@
         // size their dialogs themselves (TinyMCE 4, CKEditor 4) are given both when they open it instead.
         var sizedBox = root.closest( '.tox-dialog, .mce-window, .cke_dialog, .ck-balloon-panel, .cc-eqneditor-modal, .tc-drop-down' ) || root;
         if ( !sizedBox.matches( '.mce-window, .cke_dialog' ) ) {
-            if ( Number( design.width ) > 0 ) sizedBox.style.setProperty( 'width', Number( design.width ) + 'px', 'important' );
+            sizedBox.style.setProperty( 'width', designWidth( design ) + 'px', 'important' );
             var area = root.querySelector( '.CCMathViewHost' );
-            if ( Number( design.height ) > 0 && area ) {
+            if ( area ) {
                 // Measured, then measured again as the dialog settles - the toolbar fits itself to its row
                 // after the dialog first lays out, and the fonts arrive - correcting by the difference each time.
                 // A box with a height of its own (Froala's and Tiptap's modals) sizes to its contents instead.
@@ -261,10 +303,10 @@
                     // Scale may already be applied (see below), and on-screen sizes include it.
                     var applied = parseFloat( sizedBox.style.zoom ) || parseFloat( ( sizedBox.style.transform.match( /scale\(([\d.]+)\)/ ) || [] )[ 1 ] ) || 1;
                     var now = h || shown.getBoundingClientRect().height / applied;
-                    h = Math.max( 120, Math.round( now + Number( design.height ) - sizedBox.getBoundingClientRect().height / applied ) );
+                    h = Math.max( 120, Math.round( now + designHeight( design ) - sizedBox.getBoundingClientRect().height / applied ) );
                     // Never taller than the whole dialog asked for: a host that caps its dialog (and scrolls the
                     // rest) would otherwise be chased upwards on every pass.
-                    h = Math.min( h, Number( design.height ) );
+                    h = Math.min( h, designHeight( design ) );
                     sizing.textContent = '#' + root.id + ' { height: auto !important; } #' + root.id + ' .CCMathViewHost, #' + root.id + ' .CCLatexInput { height: ' + h + 'px !important; min-height: ' + h + 'px !important; }';
                 };
                 fit();
@@ -329,7 +371,7 @@
     // of this file. Built once per plugin instance (one per editor on the page) and reused
     // across opens, rather than rebuilt each time: unlike TinyMCE and CKEditor 5, nothing here
     // tears the dialog's DOM down on close, so there is state worth keeping between opens.
-    function createOverlay( ids ) {
+    function createOverlay( ids, design ) {
         var overlay = document.createElement( 'div' );
         overlay.className = 'cc-eqneditor-overlay';
         overlay.id = ids.overlay;
@@ -368,6 +410,9 @@
                         '<span class="cc-switch-label">LaTeX markup</span>' +
                     '</label>' +
                     '<div class="cc-eqn-bar-right cc-eqneditor-modal-actions">' +
+                        ( design && design.sizeControl
+                            ? '<select class="cc-eqn-select" data-size title="This equation\'s size, against a normal one">' + sizeOptions() + '</select>'
+                            : '' ) +
                         '<select class="cc-eqn-select" data-insert-mode title="How to insert the equation">' +
                             '<option value="mathml" selected>Insert MathML</option>' +
                             '<option value="svg">Insert SVG</option>' +
@@ -470,8 +515,13 @@
         // none at all.
         function buildInsert( latex, mode ) {
             if ( mode === 'svg' ) {
-                return '<img src="' + escapeHtml( eqOutput.exportAs( 'url' ) ) + '" ' +
-                    'alt="' + escapeHtml( latex ) + '" referrerpolicy="origin">';
+                return '<img class="fxtex" src="' + escapeHtml( eqOutput.exportAs( 'url' ) ) + '" ' +
+                    'alt="' + escapeHtml( latex ) + '" referrerpolicy="origin"' + sizeImage( eqOutput, function ( mark, size ) {
+                        var img = editor.el && editor.el.querySelector( 'img[data-cc-size="' + mark + '"]' );
+                        if ( !img ) return;
+                        if ( size ) { img.style.width = size.width; img.style.height = size.height; }
+                        img.removeAttribute( 'data-cc-size' );
+                    } ) + '>';
             }
             return eqOutput.exportAs( 'mathml' );
         }
@@ -481,21 +531,25 @@
             if ( eqTextArea ) eqTextArea.close();
         }
 
-        function showDialog( latex ) {
+        // `el`, when editing: the equation on the page, whose size the dialog starts from.
+        function showDialog( latex, el ) {
             latex = latex || '';
+            var startSize = 1;
 
-            if ( !overlay ) overlay = createOverlay( ids );
+            if ( !overlay ) overlay = createOverlay( ids, design );
             overlay.classList.add( 'cc-eqneditor-open' );
 
             var okBtn = overlay.querySelector( '.cc-eqneditor-modal-ok' );
             var cancelBtn = overlay.querySelector( '.cc-eqneditor-modal-cancel' );
             var closeBtn = overlay.querySelector( '.cc-eqneditor-modal-close' );
             var modeSelect = overlay.querySelector( '[data-insert-mode]' );
+            var sizeSelect = overlay.querySelector( '[data-size]' );
 
             function onOk() {
                 var current = eqTextArea ? eqTextArea.getTextArea().textContent.trim() : '';
                 if ( current ) {
                     editor.undo.saveStep();
+                    if ( eqOutput.setEquationSize ) eqOutput.setEquationSize( sizeSelect ? Number( sizeSelect.value ) / 100 : startSize );
                     editor.html.insert( buildInsert( current, modeSelect.value ) );
                     editor.undo.saveStep();
                     eqTextArea.pushToHistory();
@@ -513,6 +567,8 @@
             apiReady.then( function () { return ensureInit( licence ); } ).then( function () {
                 injectStyleOverridesOnce( cssUrl.slice( 0, cssUrl.lastIndexOf( '/' ) + 1 ) + 'prototypes/latinmodern-math.otf' );
                 mount();
+                startSize = sizeOf( el );
+                showSize( sizeSelect, startSize );
                 eqTextArea.clear();
                 if ( latex ) eqTextArea.insert( latex, latex.length );
                 eqTextArea.notifyOutputs();
@@ -557,7 +613,7 @@
                     var match = target.src.match( /(gif|svg|png)\.image\?(.*)/ );
                     if ( match ) {
                         editor.popups.hideAll();
-                        showDialog( decodeEquation( match[ 2 ] ) );
+                        showDialog( decodeEquation( match[ 2 ] ), target );
                     }
                     return;
                 }
@@ -565,7 +621,7 @@
                 var math = target.closest && target.closest( 'math[title]' );
                 if ( math ) {
                     var eqLatex = math.getAttribute( 'title' ).trim();
-                    if ( eqLatex ) showDialog( eqLatex );
+                    if ( eqLatex ) showDialog( eqLatex, math );
                 }
             } );
         }
