@@ -1,8 +1,9 @@
 {
   "name": "@codecogs/fxeditor-froala",
   "version": "1.0.0",
-  "description": "CodeCogs Equation Editor plugin for Froala Editor 3 and 4",
+  "description": "fxEditor, CodeCogs' LaTeX equation editor, as a plugin for Froala Editor 3 and 4",
   "keywords": [
+    "fxeditor",
     "froala",
     "froala-editor",
     "froala-plugin",
@@ -12,7 +13,8 @@
     "mathml",
     "maths"
   ],
-  "homepage": "https://editor.codecogs.com/docs/2-plugins",
+  "homepage": "https://fxplugins.codecogs.com/docs/froala.html",
+  "author": "CodeCogs",
   "main": "eqneditor.js",
   "files": [
     "eqneditor.js",
@@ -22,7 +24,6 @@
   "scripts": {
     "start": "open-cli ./example.html"
   },
-  "author": "CodeCogs",
   "license": "MIT",
   "peerDependencies": {
     "froala-editor": ">=3.0.0"
