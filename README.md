@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/willzyba/froala/main/screenshots/icon.png" alt="" width="96" align="right">
+
 # fxEditor for Froala
 
 `@codecogs/fxeditor-froala` adds an **fx** button to the toolbar of
@@ -134,7 +136,7 @@ Passed alongside Froala's own options:
 | `eqneditorLicence` | | Your fxEditor licence key. Required. |
 | `eqneditorDesign` | | The editor's look: dialog width, height and scale, toolbar panels and size, colour, equation and markup sizes, undo/redo, how the dialog opens. Build one in [Customise and download](https://fxplugins.codecogs.com/docs/froala.html#customise). |
 | `eqneditorServer` | `'fxtex.codecogs.com'` | Host the equation editor's own code is loaded from. A bare host means https; a full origin is used as it is. |
-| `eqneditorRenderUrl` | `'https://latex.codecogs.com'` | The rendering service for equations inserted as images. Point it at your own fxTeX Server to keep equations inside your network. |
+| `eqneditorRenderUrl` | `'https://fxtex.codecogs.com'` | The rendering service for equations inserted as images. Point it at your own fxTeX Server to keep equations inside your network. |
 | `eqneditorScriptUrl` | from `eqneditorServer` | Full URL of the equation editor bundle, when the default path does not suit. |
 | `eqneditorCssUrl` | from `eqneditorServer` | Full URL of the equation editor stylesheet. |
 | `eqneditorMathmlCssUrl` | from `eqneditorServer` | The MathML stylesheet loaded into the editing area. |

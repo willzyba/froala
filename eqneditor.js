@@ -10,7 +10,7 @@
  *
  *       // Optional:
  *       eqneditorServer: 'fxtex.codecogs.com',  // where the editor's own code is served from
- *       eqneditorRenderUrl: 'https://latex.codecogs.com'   // where equations are rendered
+ *       eqneditorRenderUrl: 'https://fxtex.codecogs.com'   // where equations are rendered
  *   });
  *
  * The dialog is maths-view only: no LaTeX markup and no rendered-equation preview are visible
@@ -48,7 +48,7 @@
     ];
 
     var DEFAULT_EDITOR_HOST = 'fxtex.codecogs.com';
-    var DEFAULT_RENDER_URL = 'https://latex.codecogs.com';
+    var DEFAULT_RENDER_URL = 'https://fxtex.codecogs.com';
 
     // Same fx wordmark used by the CKEditor 5 and TinyMCE plugins, as the two <path> elements
     // Froala's own built-in 'svgMultiplePath' icon template wants (it substitutes [VIEWBOX]
@@ -960,7 +960,7 @@
         }
 
         // referrerpolicy="origin" rather than leaving it to the page's own Referrer-Policy:
-        // latex.codecogs.com identifies the calling site by referer, and a page with a
+        // the rendering service identifies the calling site by referer, and a page with a
         // stricter policy (or none at all, on some browsers' defaults) would otherwise send
         // none at all.
         function buildInsert( latex, mode ) {
