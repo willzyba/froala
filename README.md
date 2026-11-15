@@ -83,7 +83,7 @@ own options:
 </script>
 ```
 
-The equation editor itself is fetched from `fxtex.codecogs.com` the first time it is needed, so
+The equation editor itself is fetched from `https://fxtex.codecogs.com` the first time it is needed, so
 you always get the current editor. The plugin adds the MathML elements to Froala's
 `htmlAllowedTags` and `htmlAllowedAttrs` itself, so nothing else needs configuring for MathML to
 survive editing.
@@ -115,7 +115,7 @@ npm start
 
 `npm install` fetches Froala into `node_modules`, which [`example.html`](example.html) loads, and
 `npm start` opens the page. Before opening it, replace its two placeholders: `{{EQN_SERVER}}`
-with `fxtex.codecogs.com` and `{{FXTEXPRO_KEY}}` with your licence key. The documentation site
+with `https://fxtex.codecogs.com` and `{{FXTEXPRO_KEY}}` with your licence key. The documentation site
 fills these in when it publishes the demo.
 
 ## Licence key
