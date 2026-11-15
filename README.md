@@ -1,97 +1,154 @@
-# @codecogs/fxeditor-froala
+# fxEditor for Froala
 
-[fxEditor](https://fxeditor.codecogs.com), CodeCogs' LaTeX equation editor, as a plugin for
-[Froala Editor](https://froala.com) 3 and 4. Authors build an equation in a maths view or as
-LaTeX, and it goes into the document as MathML or as an image.
+`@codecogs/fxeditor-froala` adds an **fx** button to the toolbar of
+[Froala Editor](https://froala.com) 3 and 4. It opens [fxEditor](https://fxeditor.codecogs.com),
+CodeCogs' equation editor, in a dialog: a toolbar of symbols and structures, a maths view you
+type into directly, and a LaTeX view that stays in step with it. The equation is inserted at the
+cursor as MathML (the default) or as an SVG image, chosen in the dialog. Click an inserted
+equation to edit it again - a single click, not a double one (see below).
 
-Full documentation, a live example and a design tool:
-**[fxplugins.codecogs.com/docs/froala.html](https://fxplugins.codecogs.com/docs/froala.html)**
+It is a single script and stylesheet, `eqneditor.js` and `eqneditor.css`, with no build step.
 
-Like the TinyMCE plugin, this is a single drop-in script - no build step, no bundler. Froala
-loads it at runtime the same way it loads any other plugin.
+Froala Editor itself is a commercial product (from Idera) and is not part of this package: you
+need a Froala licence for Froala itself. It is a peer dependency, loaded from your own copy of
+Froala.
 
-## Install
+![Froala with the fx button on its toolbar](https://raw.githubusercontent.com/willzyba/froala/main/screenshots/toolbar.png)
+
+*The fx button on Froala's toolbar.*
+
+![The fxEditor dialog open in Froala](https://raw.githubusercontent.com/willzyba/froala/main/screenshots/dialog.png)
+
+*fxEditor open in Froala.*
+
+## Links
+
+- [Documentation and live demo](https://fxplugins.codecogs.com/docs/froala.html)
+- [Customise and download](https://fxplugins.codecogs.com/docs/froala.html#customise) - design
+  the editor's look and download the result
+- [All fxEditor plugins](https://fxplugins.codecogs.com)
+- [fxEditor](https://fxeditor.codecogs.com)
+- [Source on GitHub](https://github.com/willzyba/froala)
+
+## Installing from npm
 
 ```bash
 npm install @codecogs/fxeditor-froala
 ```
 
-Or without npm, load both files from `https://fxplugins.codecogs.com/froala/`, or download them
-from the documentation page and serve them yourself.
+The package is being published to npm. Until it appears there, install it from git as below, or
+load both files from `https://fxplugins.codecogs.com/froala/`.
 
-## Use
-
-Load the plugin's script and stylesheet after Froala's own, then add `eqneditor` to the toolbar
-and give it your licence key:
+Load the plugin's script and stylesheet after Froala's own:
 
 ```html
 <link rel="stylesheet" href="node_modules/@codecogs/fxeditor-froala/eqneditor.css">
 <script src="node_modules/@codecogs/fxeditor-froala/eqneditor.js"></script>
+```
+
+## Installing from git
+
+```bash
+git clone https://github.com/willzyba/froala.git
+```
+
+Copy `eqneditor.js` and `eqneditor.css` to your site, and load them after Froala's own files:
+
+```html
+<link rel="stylesheet" href="/path/to/eqneditor.css">
+<script src="/path/to/eqneditor.js"></script>
+```
+
+Or, without copying anything, from the plugins site:
+
+```html
+<link rel="stylesheet" href="https://fxplugins.codecogs.com/froala/eqneditor.css">
+<script src="https://fxplugins.codecogs.com/froala/eqneditor.js"></script>
+```
+
+## Usage
+
+Add `eqneditor` to the toolbar and give the plugin your fxEditor licence key, alongside Froala's
+own options:
+
+```html
 <script>
   new FroalaEditor('#editor', {
     toolbarButtons: ['bold', 'italic', '|', 'eqneditor'],
-    eqneditorServer: 'fxtex.codecogs.com',
-    eqneditorLicence: 'fx_pk_your-key-here',   // from the licence manager
-    eqneditorDesign: { colour: '#0f7a4d' }     // optional
+    eqneditorLicence: 'YOUR-FXEDITOR-LICENCE-KEY',   // from the licence manager
+    eqneditorDesign: { colour: '#0f7a4d' }           // optional
   });
 </script>
 ```
 
-Press the **fx** button to insert an equation, or click an existing one to edit it again (a
-single click, not a double one - see below).
+The equation editor itself is fetched from `fxtex.codecogs.com` the first time it is needed, so
+you always get the current editor. The plugin adds the MathML elements to Froala's
+`htmlAllowedTags` and `htmlAllowedAttrs` itself, so nothing else needs configuring for MathML to
+survive editing.
 
-## Options
+To use it: click where the equation should go, click **fx**, build the equation, choose MathML
+or an image, and insert it.
 
-All optional, passed alongside Froala's own options:
-
-| Option | Default | Meaning |
-|---|---|---|
-| `eqneditorServer` | `'fxtex.codecogs.com'` | Where the equation editor is loaded from - or your own fxTeX Server. A bare host means https. |
-| `eqneditorLicence` | `''` | Your fxEditor licence key. Without one, equations show why they cannot render. |
-| `eqneditorDesign` | `{}` | How the editor looks - toolbar, colour, sizes, the predictor. Build one with the design tool on the [documentation page](https://fxplugins.codecogs.com/docs/froala.html#customise). |
-| `eqneditorRenderUrl` | `'https://latex.codecogs.com'` | The service that draws equations inserted as images. |
-| `eqneditorScriptUrl` | derived from `eqneditorServer` | Full URL of the equation editor's script, when the default path does not suit. |
-| `eqneditorCssUrl` | derived from `eqneditorServer` | Full URL of the equation editor's stylesheet. |
-| `eqneditorMathmlCssUrl` | derived from `eqneditorServer` | The MathML stylesheet loaded into the editing view. |
-
-### MathML needs a stylesheet on the page that displays it
-
-Browsers' own MathML does not cover everything the converter produces, so a page that displays
-MathML equations needs this line - the same file fxTeX ships:
+MathML needs a stylesheet on the page that displays it. The plugin loads it into the editing area
+for you; on the page that finally shows your content, add:
 
 ```html
 <link rel="stylesheet" href="https://fxtex.codecogs.com/fxtex.css">
 ```
 
-The plugin loads it into the editing view for you; it cannot add it to the page that finally
-displays the content, because that page is yours, not the editor's.
+### Why a single click, not a double one
 
-Unlike TinyMCE and CKEditor, Froala's own sanitiser allows every tag and attribute by default
-(`htmlAllowedTags`/`htmlAllowedAttrs` both default to `['*']`), so nothing has to be configured
-to let `<math>` through - just serve the stylesheet above wherever the content is published.
-If a site has narrowed those options itself, keep `math` and the MathML element names on
-whatever allow-list replaces the default.
+Froala shows its own resize and align popup over an image on the first click, so a double-click
+never reaches the image. The plugin therefore opens the equation dialog on a single click instead,
+in place of Froala's popup. This applies only to equations - images from CodeCogs' rendering
+service, and MathML carrying its LaTeX - so an ordinary image still gets Froala's usual popup.
 
-## What gets written into the page
+### Trying the example
 
-An equation goes in as MathML or as an image - the dialog's *Insert* menu, whose starting choice
-is `design.insertAs` (`'mathml'` or `'svg'`). Either can be reopened by clicking it (a single
-click, not a double one - see "Why a single click" below), because each carries the LaTeX it was
-written from (in the image's `alt`, or the `<math>` element's `title`).
+```bash
+cd froala
+npm install
+npm start
+```
 
-## Why a single click, not a double one
+`npm install` fetches Froala into `node_modules`, which [`example.html`](example.html) loads, and
+`npm start` opens the page. Before opening it, replace its two placeholders: `{{EQN_SERVER}}`
+with `fxtex.codecogs.com` and `{{FXTEXPRO_KEY}}` with your licence key. The documentation site
+fills these in when it publishes the demo.
 
-Froala shows its own resize/align popup directly over an image on the first click of any click
-on it - so a genuine double-click never reaches the image at all: the second click always lands
-on that popup, not the image underneath. A single click is the only interaction actually
-available, so this plugin uses that instead, hiding Froala's own popup immediately and opening
-the equation dialog in its place. This only affects images matching CodeCogs' own rendering
-URL - an ordinary uploaded image still gets Froala's normal resize/align popup, untouched.
+## Licence key
 
-## Why this plugin draws its own dialog
+Equations are rendered by fxTeX Pro, which needs a licence key for your domain. Without one,
+equations show the reason they cannot render in place of the maths.
 
-Froala's built-in popup system is sized for small toolbar dropdowns, not a full editing
-surface, so this plugin opens a small modal of its own (`eqneditor.css` is only that frame -
-the equation editor inside it is styled by the stylesheet loaded from `eqneditorCssUrl`). This
-is the one respect in which it differs from the CKEditor 5 and TinyMCE plugins, which use their
-host editors' own dialog APIs.
+- Get a key from [fxeditor.codecogs.com/purchase](https://fxeditor.codecogs.com/purchase): paid
+  plans, and a free trial.
+- Teachers and students can have a free individual licence:
+  [fxeditor.codecogs.com/academic](https://fxeditor.codecogs.com/academic).
+- Keys are managed in the licence manager at
+  [fxeditor.codecogs.com/login](https://fxeditor.codecogs.com/login), where you add your domains
+  and copy your key.
+
+The key goes in the `eqneditorLicence` option. This is separate from Froala's own licence key.
+
+### Options
+
+Passed alongside Froala's own options:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `eqneditorLicence` | | Your fxEditor licence key. Required. |
+| `eqneditorDesign` | | The editor's look: dialog width, height and scale, toolbar panels and size, colour, equation and markup sizes, undo/redo, how the dialog opens. Build one in [Customise and download](https://fxplugins.codecogs.com/docs/froala.html#customise). |
+| `eqneditorServer` | `'fxtex.codecogs.com'` | Host the equation editor's own code is loaded from. A bare host means https; a full origin is used as it is. |
+| `eqneditorRenderUrl` | `'https://latex.codecogs.com'` | The rendering service for equations inserted as images. Point it at your own fxTeX Server to keep equations inside your network. |
+| `eqneditorScriptUrl` | from `eqneditorServer` | Full URL of the equation editor bundle, when the default path does not suit. |
+| `eqneditorCssUrl` | from `eqneditorServer` | Full URL of the equation editor stylesheet. |
+| `eqneditorMathmlCssUrl` | from `eqneditorServer` | The MathML stylesheet loaded into the editing area. |
+
+## Licence
+
+The plugin is Copyright CodeCogs, released under the MIT licence (as declared in
+`package.json`).
+
+Froala Editor is a commercial product, licensed separately by its publisher; see
+[froala.com](https://froala.com). fxEditor and fxTeX Pro need their own licence key, as above.
