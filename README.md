@@ -75,7 +75,7 @@ own options:
 <script>
   new FroalaEditor('#editor', {
     toolbarButtons: ['bold', 'italic', '|', 'eqneditor'],
-    eqneditorLicence: 'YOUR-FXEDITOR-LICENCE-KEY',   // from the licence manager
+    eqneditorLicence: 'YOUR-FXEDITOR-LICENCE-KEY',   // from fxeditor.codecogs.com/purchase
     eqneditorDesign: { colour: '#0f7a4d' }           // optional
   });
 </script>
@@ -121,13 +121,7 @@ fills these in when it publishes the demo.
 Equations are rendered by fxTeX Pro, which needs a licence key for your domain. Without one,
 equations show the reason they cannot render in place of the maths.
 
-- Get a key from [fxeditor.codecogs.com/purchase](https://fxeditor.codecogs.com/purchase): paid
-  plans, and a free trial.
-- Teachers and students can have a free individual licence:
-  [fxeditor.codecogs.com/academic](https://fxeditor.codecogs.com/academic).
-- Keys are managed in the licence manager at
-  [fxeditor.codecogs.com/login](https://fxeditor.codecogs.com/login), where you add your domains
-  and copy your key.
+Get your licence key from [fxeditor.codecogs.com/purchase](https://fxeditor.codecogs.com/purchase).
 
 The key goes in the `eqneditorLicence` option. This is separate from Froala's own licence key.
 
@@ -147,8 +141,10 @@ Passed alongside Froala's own options:
 
 ## Licence
 
-The plugin is Copyright CodeCogs, released under the MIT licence (as declared in
-`package.json`).
+Copyright (c) 2026 CodeCogs, Zyba Ltd.
+
+The plugin is released under the MIT licence - see
+[`LICENSE`](https://github.com/willzyba/froala/blob/main/LICENSE).
 
 Froala Editor is a commercial product, licensed separately by its publisher; see
 [froala.com](https://froala.com). fxEditor and fxTeX Pro need their own licence key, as above.
