@@ -9,7 +9,7 @@
  *       toolbarButtons: ['bold', 'italic', '|', 'eqneditor'],
  *
  *       // Optional:
- *       eqneditorServer: 'fxtex.codecogs.com',  // where the editor's own code is served from
+ *       eqneditorServer: 'https://fxtex.codecogs.com',  // where the editor's own code is served from
  *       eqneditorRenderUrl: 'https://fxtex.codecogs.com'   // where equations are rendered
  *   });
  *
@@ -47,7 +47,7 @@
         'mtable', 'mtr', 'mtd', 'mlabeledtr', 'maction'
     ];
 
-    var DEFAULT_EDITOR_HOST = 'fxtex.codecogs.com';
+    var DEFAULT_EDITOR_HOST = 'https://fxtex.codecogs.com';
     var DEFAULT_RENDER_URL = 'https://fxtex.codecogs.com';
 
     // Same fx wordmark used by the CKEditor 5 and TinyMCE plugins, as the two <path> elements

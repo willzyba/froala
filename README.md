@@ -135,7 +135,7 @@ Passed alongside Froala's own options:
 |---|---|---|
 | `eqneditorLicence` | | Your fxEditor licence key. Required. |
 | `eqneditorDesign` | | The editor's look: dialog width, height and scale, toolbar panels and size, colour, equation and markup sizes, undo/redo, how the dialog opens. Build one in [Customise and download](https://fxplugins.codecogs.com/docs/froala.html#customise). |
-| `eqneditorServer` | `'fxtex.codecogs.com'` | Host the equation editor's own code is loaded from. A bare host means https; a full origin is used as it is. |
+| `eqneditorServer` | `'https://fxtex.codecogs.com'` | Where the equation editor's own code is loaded from, as a URL (a bare host is taken as https). |
 | `eqneditorRenderUrl` | `'https://fxtex.codecogs.com'` | The rendering service for equations inserted as images. Point it at your own fxTeX Server to keep equations inside your network. |
 | `eqneditorScriptUrl` | from `eqneditorServer` | Full URL of the equation editor bundle, when the default path does not suit. |
 | `eqneditorCssUrl` | from `eqneditorServer` | Full URL of the equation editor stylesheet. |
