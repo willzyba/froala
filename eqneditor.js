@@ -129,6 +129,22 @@
         document.head.appendChild( link );
     }
 
+    // fxtex.css styles inserted MathML. fxTeX Pro (which EqEditor.init() loads when the dialog
+    // first opens) puts the same rules on the page itself as <style id="fxtex-style">, unless
+    // an element with that id is already there - so this adds the file under that id, and only
+    // when nothing has claimed it yet: the page never carries two copies. Froala's content is
+    // part of the page, and MathML already in it needs styling before the dialog has ever been
+    // opened, which is why the file is still loaded here at all. With `iframe: true` the
+    // content is a separate document fxTeX Pro never reaches, and the file goes there instead.
+    function loadFxtexStyleOnce( url, doc ) {
+        if ( doc.getElementById( 'fxtex-style' ) || doc.querySelector( 'link[href="' + url + '"]' ) ) return;
+        var link = doc.createElement( 'link' );
+        link.id = 'fxtex-style';
+        link.rel = 'stylesheet';
+        link.href = url;
+        ( doc.head || doc.documentElement ).appendChild( link );
+    }
+
     function decodeEquation( encoded ) {
         var latex = encoded;
         try {
@@ -899,7 +915,7 @@
 
         var apiReady = loadScriptOnce( scriptUrl );
         loadCssOnce( cssUrl );
-        loadCssOnce( mathmlCssUrl );
+        loadFxtexStyleOnce( mathmlCssUrl, ( opts.iframe && editor.iframe_document ) || document );
 
         var overlay = null;
         var eqOutput = null, eqTextArea = null, eqMathView = null, eqToolbar = null;

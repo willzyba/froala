@@ -95,8 +95,11 @@ MathML needs a stylesheet on the page that displays it. The plugin loads it into
 for you; on the page that finally shows your content, add:
 
 ```html
-<link rel="stylesheet" href="https://fxtex.codecogs.com/fxtex.css">
+<link id="fxtex-style" rel="stylesheet" href="https://fxtex.codecogs.com/fxtex.css">
 ```
+
+The `id` is the one fxTeX Pro looks for: on a page that also runs the editor, fxTeX Pro sees
+the rules are already there and does not add a second copy.
 
 ### Why a single click, not a double one
 
@@ -139,7 +142,7 @@ Passed alongside Froala's own options:
 | `eqneditorRenderUrl` | `'https://fxtex.codecogs.com'` | The rendering service for equations inserted as images. Point it at your own fxTeX Server to keep equations inside your network. |
 | `eqneditorScriptUrl` | from `eqneditorServer` | Full URL of the equation editor bundle, when the default path does not suit. |
 | `eqneditorCssUrl` | from `eqneditorServer` | Full URL of the equation editor stylesheet. |
-| `eqneditorMathmlCssUrl` | from `eqneditorServer` | The MathML stylesheet loaded into the editing area. |
+| `eqneditorMathmlCssUrl` | from `eqneditorServer` | The MathML stylesheet (`fxtex.css`) loaded for the editing view as soon as the editor starts, under the id fxTeX Pro looks for (`fxtex-style`), so fxTeX Pro uses it rather than adding its own copy. With `iframe: true` it goes into Froala's iframe. |
 
 ## Licence
 
