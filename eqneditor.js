@@ -350,7 +350,8 @@
                 box.style.setProperty( 'max-width', 'calc(96vw / ' + size + ')', 'important' );   // still no wider than the window
             }
         }
-        if ( insertSelect && design.insertAs && insertSelect.querySelector( 'option[value="' + design.insertAs + '"]' ) ) {
+        // The design's choice, unless the author has made their own (addEditorControls()).
+        if ( insertSelect && design.insertAs && !insertSelect.hasAttribute( 'data-cc-remembered' ) && insertSelect.querySelector( 'option[value="' + design.insertAs + '"]' ) ) {
             insertSelect.value = design.insertAs;
         }
         if ( latexToggle && design.latex && !latexToggle.checked && !latexToggle.disabled ) {
@@ -372,6 +373,25 @@
         if ( typeof output.exportAs === 'function' ) return output.exportAs( kind );
         if ( kind === 'mathml' ) return output.setFormat( 'mathml' ).setWrapper( 'html' ).getCode();
         return output.setFormat( 'svg' ).getEquationURL();
+    }
+
+    // Where "Insert as" starts each time the dialog opens - this one is built once and reused, so it
+    // would otherwise keep whatever the last open left: the form of the equation being edited, else the
+    // author's last choice (addEditorControls()), else the design's, else the dialog's own default.
+    function startInsertAs( select, format, design ) {
+        if ( !select ) return;
+        var prefs = {};
+        try { prefs = JSON.parse( localStorage.getItem( EDITOR_PREFS_KEY ) ) || {}; } catch ( e ) {}
+        var choices = [ format, prefs.insertAs, design && design.insertAs ];
+        for ( var i = 0; i < choices.length; i++ ) {
+            if ( choices[ i ] && select.querySelector( 'option[value="' + choices[ i ] + '"]' ) ) {
+                select.value = choices[ i ];
+                return;
+            }
+        }
+        for ( var j = 0; j < select.options.length; j++ ) {
+            if ( select.options[ j ].defaultSelected ) select.value = select.options[ j ].value;
+        }
     }
 
     // The editor's own controls, as the Google Docs sidebar has them: the toolbar's size (50-120%) at the
@@ -459,6 +479,16 @@
                 latex.dispatchEvent( new Event( 'change', { bubbles: true } ) );
             }
             latex.addEventListener( 'change', function () { prefs.latex = latex.checked; save(); } );
+        }
+
+        // Insert as: the author's last choice, over the design's.
+        var insertAs = parts.insertSelect;
+        if ( insertAs ) {
+            if ( prefs.insertAs && insertAs.querySelector( 'option[value="' + prefs.insertAs + '"]' ) ) {
+                insertAs.value = prefs.insertAs;
+                insertAs.setAttribute( 'data-cc-remembered', '' );
+            }
+            insertAs.addEventListener( 'change', function () { prefs.insertAs = insertAs.value; save(); } );
         }
 
         stackPanes( root, prefs, save );
@@ -970,7 +1000,8 @@
                 .addEventListener( 'change', function ( e ) { applyInline( e.target.checked ); } );
 
             addEditorControls( document.getElementById( ids.root ), design, { textArea: eqTextArea, mathView: eqMathView, output: eqOutput,
-                latexToggle: latexToggle, inlineToggle: document.querySelector( '#' + ids.overlay + ' input[data-inline-toggle]' ) } );
+                latexToggle: latexToggle, inlineToggle: document.querySelector( '#' + ids.overlay + ' input[data-inline-toggle]' ),
+                insertSelect: document.querySelector( '#' + ids.overlay + ' [data-insert-mode]' ) } );
             applyDesign( document.getElementById( ids.root ), design, latexToggle,
                 document.querySelector( '#' + ids.overlay + ' [data-insert-mode]' ) );
         }
@@ -997,8 +1028,34 @@
             if ( eqTextArea ) eqTextArea.close();
         }
 
-        // `el`, when editing: the equation on the page, whose size the dialog starts from.
-        function showDialog( latex, el ) {
+        // The whole equation an element on the page belongs to: for MathML, the wrapper the
+        // converter puts round the <math> (it carries the spoken text), else the <math> itself.
+        function equationOf( el ) {
+            if ( !el || el.nodeName.toLowerCase() !== 'math' ) return el;
+            var wrapper = el.parentNode;
+            return wrapper && wrapper.nodeName.toLowerCase() === 'span' && wrapper.classList.contains( 'cc-math' ) ? wrapper : el;
+        }
+
+        // Puts the equation in at the caret, or in place of `el`, the equation being edited - all of it.
+        // Left to html.insert(), an edited equation went in wherever the caret was and the old one
+        // stayed, so the page had both.
+        function insertEquation( html, el ) {
+            var target = equationOf( el );
+            if ( !target || !editor.el.contains( target ) ) {
+                editor.html.insert( html );
+                return;
+            }
+            var box = target.ownerDocument.createElement( 'div' );
+            box.innerHTML = html;
+            while ( box.firstChild ) target.parentNode.insertBefore( box.firstChild, target );
+            target.parentNode.removeChild( target );
+            editor.events.trigger( 'contentChanged' );
+        }
+
+        // `el`, when editing: the equation on the page, whose size the dialog starts from and which
+        // OK replaces. `format` ('svg' or 'mathml'): what it was inserted as, which the dialog starts
+        // with, so an edited equation goes back in the form it came out of.
+        function showDialog( latex, el, format ) {
             latex = latex || '';
             var startSize = 1;
 
@@ -1016,7 +1073,7 @@
                 if ( current ) {
                     editor.undo.saveStep();
                     if ( eqOutput.setScale || eqOutput.setEquationSize ) ( eqOutput.setScale || eqOutput.setEquationSize ).call( eqOutput, sizeSelect ? Number( sizeSelect.value ) / 100 : startSize );
-                    editor.html.insert( buildInsert( current, modeSelect.value ) );
+                    insertEquation( buildInsert( current, modeSelect.value ), el );
                     editor.undo.saveStep();
                     eqTextArea.pushToHistory();
                 }
@@ -1033,6 +1090,7 @@
             apiReady.then( function () { return ensureInit( licence ); } ).then( function () {
                 injectStyleOverridesOnce( cssUrl.slice( 0, cssUrl.lastIndexOf( '/' ) + 1 ) + 'prototypes/latinmodern-math.otf' );
                 mount();
+                startInsertAs( modeSelect, format, design );
                 startSize = sizeOf( el );
                 showSize( sizeSelect, startSize );
                 eqTextArea.clear();
@@ -1057,7 +1115,9 @@
             editor.opts.htmlAllowedTags = allowedTags;
 
             var allowedAttrs = editor.opts.htmlAllowedAttrs || [];
-            [ 'referrerpolicy', 'display', 'xmlns' ].forEach( function ( name ) {
+            // role and the aria- attributes carry an equation's spoken text (on the wrapper round its
+            // MathML) - without them, saved equations lost it each time the content was loaded.
+            [ 'referrerpolicy', 'display', 'xmlns', 'role', 'aria-label', 'aria-hidden', 'lang' ].forEach( function ( name ) {
                 if ( allowedAttrs.indexOf( name ) === -1 ) allowedAttrs.push( name );
             } );
             editor.opts.htmlAllowedAttrs = allowedAttrs;
@@ -1083,7 +1143,7 @@
                         // dialog by then - taking it from the equation editor (see focusEditor()).
                         e.preventDefault();
                         editor.popups.hideAll();
-                        showDialog( decodeEquation( match[ 2 ] ), target );
+                        showDialog( decodeEquation( match[ 2 ] ), target, 'svg' );
                     }
                     return;
                 }
@@ -1093,7 +1153,7 @@
                     var eqLatex = math.getAttribute( 'title' ).trim();
                     if ( eqLatex ) {
                         e.preventDefault();
-                        showDialog( eqLatex, math );
+                        showDialog( eqLatex, math, 'mathml' );
                     }
                 }
             } );
