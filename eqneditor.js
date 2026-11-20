@@ -47,6 +47,27 @@
         'mtable', 'mtr', 'mtd', 'mlabeledtr', 'maction'
     ];
 
+    // The SVG fxTeX Pro draws chemical structures (chemfig) and pictures (the picture environment)
+    // with, inside the MathML, and the attributes it uses. Named one by one, unlike MathML: SVG has
+    // event attributes (onload and the rest) that a content filter must not let through.
+    // MathML's own attributes, which Froala's list does not have either: without them, \mathrm and
+    // the rest lost their mathvariant, and stretchy brackets, spacing and tables their settings.
+    var MATHML_ATTRIBUTES = [ 'mathvariant', 'mathsize', 'mathcolor', 'mathbackground', 'displaystyle', 'scriptlevel',
+        'stretchy', 'fence', 'separator', 'lspace', 'rspace', 'accent', 'accentunder', 'movablelimits', 'largeop',
+        'symmetric', 'minsize', 'maxsize', 'linethickness', 'depth', 'voffset', 'notation', 'encoding',
+        'columnalign', 'rowalign', 'columnspacing', 'rowspacing', 'columnlines', 'rowlines', 'frame',
+        'framespacing', 'columnspan', 'rowspan', 'open', 'close', 'separators', 'actiontype', 'selection' ];
+
+    var SVG_ELEMENTS = [ 'svg', 'g', 'path', 'line', 'polyline', 'polygon', 'rect', 'circle', 'ellipse',
+        'text', 'tspan', 'defs', 'use', 'title', 'desc' ];
+    var SVG_ATTRIBUTES = [ 'xmlns', 'xmlns:xlink', 'version', 'viewBox', 'preserveAspectRatio', 'width', 'height',
+        'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'dx', 'dy', 'd', 'points', 'transform',
+        'fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linecap',
+        'stroke-linejoin', 'stroke-miterlimit', 'stroke-dasharray', 'stroke-dashoffset', 'opacity',
+        'font-family', 'font-size', 'font-style', 'font-weight', 'text-anchor', 'dominant-baseline',
+        'href', 'xlink:href', 'id', 'class', 'style', 'role', 'aria-label', 'aria-hidden', 'focusable', 'overflow',
+        'viewbox', 'preserveaspectratio' ];
+
     var DEFAULT_EDITOR_HOST = 'https://fxtex.codecogs.com';
     var DEFAULT_RENDER_URL = 'https://fxtex.codecogs.com';
 
@@ -109,12 +130,14 @@
     // on to fxTeX Pro - skip it and they keep the placeholder converter for their whole
     // lifetime, even once fxeditor.api.min.js itself has loaded. Called once per page; an
     // empty licence is the normal, expected state until a real one is configured.
+    // fxTeX Pro's optional packages are off unless named here: without them \ce, \chemfig,
+    // \dv and the picture environment were unknown commands, shown as their letters.
     var initPromise = null;
 
     function ensureInit( licence ) {
         if ( initPromise ) return initPromise;
         initPromise = ( typeof EqEditor.init === 'function' )
-            ? EqEditor.init( { licence: licence || '' } ).catch( function ( err ) {
+            ? EqEditor.init( { licence: licence || '', packages: [ 'mhchem', 'chemfig', 'physics', 'picture' ] } ).catch( function ( err ) {
                 window.console && console.warn( 'fxTeX Pro: ' + ( err && err.message || err ) );
             } )
             : Promise.resolve();
@@ -153,6 +176,99 @@
             // Not valid percent-encoding; still worth showing as it stands.
         }
         return latex.replace( /&space;/g, ' ' ).replace( /&plus;/g, '+' ).replace( /&hash;/g, '#' );
+    }
+
+    // "Insert as LaTeX": the equation as text fxTeX Pro typesets where the page is shown - $...$
+    // inline, $$...$$ on its own line - the delimiters fxTeX Pro looks for by default.
+    function texOf( latex, inline ) {
+        return inline ? '$' + latex + '$' : '$$' + latex + '$$';
+    }
+
+    // The $...$ or $$...$$ in `text` that `offset` is in or at the edge of, read as fxTeX Pro reads
+    // it: $$ opens a display equation and a single $ an inline one, each closed by the same, and
+    // \$ is a dollar sign, not a delimiter. Returns { start, end, latex, display }, or null.
+    function texAround( text, offset ) {
+        var i = 0;
+        while ( i < text.length ) {
+            var c = text.charAt( i );
+            if ( c === '\\' ) { i += 2; continue; }
+            if ( c !== '$' ) { i++; continue; }
+            var display = text.charAt( i + 1 ) === '$', size = display ? 2 : 1, j = i + size;
+            while ( j < text.length && !( text.charAt( j ) === '$' && ( !display || text.charAt( j + 1 ) === '$' ) ) ) {
+                j += text.charAt( j ) === '\\' ? 2 : 1;
+            }
+            if ( j >= text.length ) return null;
+            var end = j + size;
+            if ( offset >= i && offset <= end ) {
+                var latex = text.slice( i + size, j ).trim();
+                return latex ? { start: i, end: end, latex: latex, display: display } : null;
+            }
+            i = end;
+        }
+        return null;
+    }
+
+    // The LaTeX equation at a point in the page's text (a text node and an offset in it, as a
+    // selection gives), as texAround() describes, or null where there is none. Read across the
+    // run of text nodes the point is in, as an editor often leaves one line's text in several.
+    // Returns { tex: true, latex, display, text, start, end }, start and end being { node, offset }.
+    function texAt( node, offset ) {
+        if ( !node || node.nodeType !== 3 ) return null;
+        var first = node, runs = [], text = '', at = 0;
+        while ( first.previousSibling && first.previousSibling.nodeType === 3 ) first = first.previousSibling;
+        for ( var n = first; n && n.nodeType === 3; n = n.nextSibling ) {
+            if ( n === node ) at = text.length + offset;
+            runs.push( { node: n, from: text.length } );
+            text += n.data;
+        }
+        var found = texAround( text, at );
+        if ( !found ) return null;
+        // The node and offset `i` characters into the run - where a start or an end falls on the
+        // join between two nodes, in the one the equation is in.
+        var point = function ( i, isEnd ) {
+            for ( var k = runs.length - 1; k > 0; k-- ) {
+                if ( isEnd ? runs[ k ].from < i : runs[ k ].from <= i ) break;
+            }
+            return { node: runs[ k ].node, offset: i - runs[ k ].from };
+        };
+        return { tex: true, latex: found.latex, display: found.display, text: text.slice( found.start, found.end ),
+            start: point( found.start, false ), end: point( found.end, true ) };
+    }
+
+    // A DOM range over the LaTeX equation `tex` (from texAt()) if it is still in `body`,
+    // unchanged, where it was found - else null.
+    function texRange( tex, body ) {
+        if ( !tex || !body.contains( tex.start.node ) || !body.contains( tex.end.node ) ) return null;
+        var range = body.ownerDocument.createRange();
+        try {
+            range.setStart( tex.start.node, tex.start.offset );
+            range.setEnd( tex.end.node, tex.end.offset );
+        } catch ( e ) { return null; }
+        return range.toString() === tex.text ? range : null;
+    }
+
+    // An image equation's LaTeX, read back from its rendering URL, starts with the \inline the editor
+    // put there for an inline equation. Taken off, as the editor adds it again (left on, it showed in
+    // the editor and each edit added another), and given back as whether the equation is inline.
+    function splitInline( latex ) {
+        var found = /^\s*\\inline\b\s*/.exec( latex );
+        return { latex: found ? latex.slice( found[ 0 ].length ) : latex, inline: !!found };
+    }
+
+    // The Inline switch as the dialog opens: an edited LaTeX equation's own form ($ inline, $$
+    // not), otherwise what the author last chose. Set without a change event, so editing one
+    // equation does not change the remembered choice; `apply` shows the change in the dialog.
+    function startInline( toggle, inline, apply ) {
+        if ( !toggle || toggle.disabled ) return;
+        if ( typeof inline !== 'boolean' ) {
+            var prefs = {};
+            try { prefs = JSON.parse( localStorage.getItem( EDITOR_PREFS_KEY ) ) || {}; } catch ( e ) {}
+            inline = typeof prefs.inline === 'boolean' ? prefs.inline : toggle.defaultChecked;
+        }
+        if ( toggle.checked !== inline ) {
+            toggle.checked = inline;
+            apply( inline );
+        }
     }
 
     function escapeHtml( s ) {
@@ -910,6 +1026,7 @@
                         '<select class="cc-eqn-select" data-insert-mode title="How to insert the equation">' +
                             '<option value="mathml" selected>Insert MathML</option>' +
                             '<option value="svg">Insert SVG</option>' +
+                            '<option value="latex">Insert LaTeX</option>' +
                         '</select>' +
                         '<button type="button" class="cc-eqn-btn cc-eqneditor-modal-cancel">Cancel</button>' +
                         '<button type="button" class="cc-eqn-btn cc-eqn-primary cc-eqneditor-modal-ok">OK</button>' +
@@ -1011,6 +1128,9 @@
         // stricter policy (or none at all, on some browsers' defaults) would otherwise send
         // none at all.
         function buildInsert( latex, mode ) {
+            if ( mode === 'latex' ) {
+                return escapeHtml( texOf( latex, document.querySelector( '#' + ids.overlay + ' input[data-inline-toggle]' ).checked ) );
+            }
             if ( mode === 'svg' ) {
                 return '<img class="fxtex" src="' + escapeHtml( outputCode( eqOutput, 'url' ) ) + '" ' +
                     'alt="' + escapeHtml( latex ) + '" referrerpolicy="origin"' + sizeImage( eqOutput, function ( mark, size ) {
@@ -1026,6 +1146,24 @@
         function close() {
             overlay.classList.remove( 'cc-eqneditor-open' );
             if ( eqTextArea ) eqTextArea.close();
+            restoreCaret();
+        }
+
+        // Where the caret was as the dialog opened. The dialog takes the focus, and the caret with it,
+        // so html.insert() put each new equation in a paragraph of its own at the end of the content.
+        // Kept with Froala's own markers, which restoreCaret() puts the caret back to and removes.
+        var caretSaved = false;
+        function saveCaret() {
+            if ( editor.selection.inEditor() ) {
+                editor.selection.save();
+                caretSaved = true;
+            }
+        }
+        function restoreCaret() {
+            if ( caretSaved ) {
+                caretSaved = false;
+                editor.selection.restore();
+            }
         }
 
         // The whole equation an element on the page belongs to: for MathML, the wrapper the
@@ -1040,8 +1178,22 @@
         // Left to html.insert(), an edited equation went in wherever the caret was and the old one
         // stayed, so the page had both.
         function insertEquation( html, el ) {
-            var target = equationOf( el );
+            // A LaTeX equation in the text (from texAt()): the $...$ or $$...$$, delimiters and all.
+            var range = el && el.tex ? texRange( el, editor.el ) : null;
+            if ( range ) {
+                var holder = range.startContainer.ownerDocument.createElement( 'div' );
+                holder.innerHTML = html;
+                var parts = range.startContainer.ownerDocument.createDocumentFragment();
+                while ( holder.firstChild ) parts.appendChild( holder.firstChild );
+                range.deleteContents();
+                range.insertNode( parts );
+                lockEquations();
+                editor.events.trigger( 'contentChanged' );
+                return;
+            }
+            var target = el && el.tex ? null : equationOf( el );
             if ( !target || !editor.el.contains( target ) ) {
+                restoreCaret();
                 editor.html.insert( html );
                 return;
             }
@@ -1049,16 +1201,45 @@
             box.innerHTML = html;
             while ( box.firstChild ) target.parentNode.insertBefore( box.firstChild, target );
             target.parentNode.removeChild( target );
+            lockEquations();
             editor.events.trigger( 'contentChanged' );
         }
 
+        // Each MathML equation is one object while it is in the editor. The browser cannot edit
+        // inside a <math> sensibly: Backspace after one ate into it a character at a time, leaving
+        // a broken equation, and it could never be deleted whole. Marked contenteditable="false",
+        // with Froala's fr-deletable (how its own emoticons are kept whole but deletable), it
+        // goes in one keystroke. The marks are taken off while Froala reads the content out, so
+        // saved content never carries them.
+        function equationsIn() {
+            var maths = editor.el.querySelectorAll( 'math' ), list = [];
+            for ( var i = 0; i < maths.length; i++ ) list.push( equationOf( maths[ i ] ) );
+            return list;
+        }
+        function lockEquations() {
+            equationsIn().forEach( function ( el ) {
+                el.setAttribute( 'contenteditable', 'false' );
+                el.classList.add( 'fr-deletable' );
+            } );
+        }
+        function unlockEquations() {
+            equationsIn().forEach( function ( el ) {
+                el.removeAttribute( 'contenteditable' );
+                el.classList.remove( 'fr-deletable' );
+                if ( !el.getAttribute( 'class' ) ) el.removeAttribute( 'class' );
+            } );
+        }
+
         // `el`, when editing: the equation on the page, whose size the dialog starts from and which
-        // OK replaces. `format` ('svg' or 'mathml'): what it was inserted as, which the dialog starts
-        // with, so an edited equation goes back in the form it came out of.
-        function showDialog( latex, el, format ) {
+        // OK replaces (for LaTeX, where it is in the text, from texAt()). `format` ('svg', 'mathml' or
+        // 'latex'): what it was inserted as, which the dialog starts with, so an edited equation goes
+        // back in the form it came out of. `inline`: whether it is an inline equation ($...$, for LaTeX),
+        // which the Inline switch starts at.
+        function showDialog( latex, el, format, inline ) {
             latex = latex || '';
             var startSize = 1;
 
+            if ( !el ) saveCaret();
             if ( !overlay ) overlay = createOverlay( ids, design );
             overlay.classList.add( 'cc-eqneditor-open' );
 
@@ -1091,7 +1272,8 @@
                 injectStyleOverridesOnce( cssUrl.slice( 0, cssUrl.lastIndexOf( '/' ) + 1 ) + 'prototypes/latinmodern-math.otf' );
                 mount();
                 startInsertAs( modeSelect, format, design );
-                startSize = sizeOf( el );
+                startInline( overlay.querySelector( 'input[data-inline-toggle]' ), inline, applyInline );
+                startSize = sizeOf( el && el.nodeType ? el : null );
                 showSize( sizeSelect, startSize );
                 eqTextArea.clear();
                 if ( latex ) eqTextArea.insert( latex, latex.length );
@@ -1109,7 +1291,7 @@
             // them added here, or the html.insert() calls in showDialog() silently strip the
             // markup/attribute rather than erroring.
             var allowedTags = editor.opts.htmlAllowedTags || [];
-            MATHML_ELEMENTS.forEach( function ( name ) {
+            MATHML_ELEMENTS.concat( SVG_ELEMENTS ).forEach( function ( name ) {
                 if ( allowedTags.indexOf( name ) === -1 ) allowedTags.push( name );
             } );
             editor.opts.htmlAllowedTags = allowedTags;
@@ -1117,10 +1299,26 @@
             var allowedAttrs = editor.opts.htmlAllowedAttrs || [];
             // role and the aria- attributes carry an equation's spoken text (on the wrapper round its
             // MathML) - without them, saved equations lost it each time the content was loaded.
-            [ 'referrerpolicy', 'display', 'xmlns', 'role', 'aria-label', 'aria-hidden', 'lang' ].forEach( function ( name ) {
+            [ 'referrerpolicy', 'display', 'xmlns', 'role', 'aria-label', 'aria-hidden', 'lang' ].concat( MATHML_ATTRIBUTES, SVG_ATTRIBUTES ).forEach( function ( name ) {
                 if ( allowedAttrs.indexOf( name ) === -1 ) allowedAttrs.push( name );
             } );
             editor.opts.htmlAllowedAttrs = allowedAttrs;
+
+            // MathML and SVG elements that are empty by nature: Froala removed them (a matrix lost
+            // the strut that spaces its rows) unless they are on this list.
+            var emptyTags = editor.opts.htmlAllowedEmptyTags || [];
+            [ 'mspace', 'mglyph', 'none', 'mprescripts', 'path', 'line', 'polyline', 'polygon', 'rect', 'circle',
+                'ellipse', 'use' ].forEach( function ( name ) {
+                if ( emptyTags.indexOf( name ) === -1 ) emptyTags.push( name );
+            } );
+            editor.opts.htmlAllowedEmptyTags = emptyTags;
+
+            // Equations whole while in the editor (see lockEquations()), but not in what is saved.
+            lockEquations();
+            editor.events.on( 'html.set', lockEquations );
+            editor.events.on( 'html.inserted', lockEquations );
+            editor.events.on( 'html.beforeGet', unlockEquations );
+            editor.events.on( 'html.afterGet', lockEquations );
 
             // Click an existing equation to edit it again - reads the LaTeX back the same two
             // ways as the TinyMCE and CKEditor 5 plugins, but on a single click, not a double
@@ -1143,7 +1341,8 @@
                         // dialog by then - taking it from the equation editor (see focusEditor()).
                         e.preventDefault();
                         editor.popups.hideAll();
-                        showDialog( decodeEquation( match[ 2 ] ), target, 'svg' );
+                        var eq = splitInline( decodeEquation( match[ 2 ] ) );
+                        showDialog( eq.latex, target, 'svg', eq.inline );
                     }
                     return;
                 }
@@ -1153,8 +1352,25 @@
                     var eqLatex = math.getAttribute( 'title' ).trim();
                     if ( eqLatex ) {
                         e.preventDefault();
-                        showDialog( eqLatex, math, 'mathml' );
+                        showDialog( eqLatex, math, 'mathml', math.getAttribute( 'display' ) !== 'block' );
                     }
+                }
+            } );
+
+            // LaTeX in the text, as "Insert as LaTeX" puts it, on a double-click (a single click has
+            // to stay free for putting the caret in it): the double-click has selected a word of it,
+            // and the $...$ or $$...$$ round that is the equation.
+            editor.events.$on( editor.$el, 'dblclick', function ( e ) {
+                if ( e.target && e.target.closest && e.target.closest( 'math, img' ) ) return;
+                var selection = editor.el.ownerDocument.getSelection();
+                var range = selection && selection.rangeCount ? selection.getRangeAt( 0 ) : null;
+                var tex = range && texAt( range.startContainer, range.startOffset );
+                if ( tex ) {
+                    e.preventDefault();
+                    // The word the double-click selected is in this page, as the dialog is: left
+                    // selected, the dialog's own editing area put the equation into it, not itself.
+                    selection.removeAllRanges();
+                    showDialog( tex.latex, tex, 'latex', !tex.display );
                 }
             } );
         }

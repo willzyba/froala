@@ -6,8 +6,9 @@
 [Froala Editor](https://froala.com) 3 and 4. It opens [fxEditor](https://fxeditor.codecogs.com),
 CodeCogs' equation editor, in a dialog: a toolbar of symbols and structures, a maths view you
 type into directly, and a LaTeX view that stays in step with it. The equation is inserted at the
-cursor as MathML (the default) or as an SVG image, chosen in the dialog. Click an inserted
-equation to edit it again - a single click, not a double one (see below).
+cursor as MathML (the default), as an SVG image, or as LaTeX text (`$...$` inline, `$$...$$` on its own line) for [fxTeX](https://fxeditor.codecogs.com/docs/0-fxtex.php) to typeset on the page that shows it, chosen in
+the dialog. Click an inserted MathML or SVG equation to edit it again - a single click, not a double
+one (see below); double-click LaTeX in the text.
 
 It is a single script and stylesheet, `eqneditor.js` and `eqneditor.css`, with no build step.
 
