@@ -9,6 +9,7 @@ type into directly, and a LaTeX view that stays in step with it. The equation is
 cursor as MathML (the default), as an SVG image, or as LaTeX text (`$...$` inline, `$$...$$` on its own line) for [fxTeX](https://fxeditor.codecogs.com/docs/0-fxtex.php) to typeset on the page that shows it, chosen in
 the dialog. Click an inserted MathML or SVG equation to edit it again - a single click, not a double
 one (see below); double-click LaTeX in the text.
+LaTeX in the content shows as the maths it is while it is edited, and is saved as the LaTeX, character for character (`latexAsMaths: false` in the design turns this off).
 
 It is a single script and stylesheet, `eqneditor.js` and `eqneditor.css`, with no build step.
 

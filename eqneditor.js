@@ -271,6 +271,51 @@
         }
     }
 
+    // A piece of text as runs of plain text and LaTeX equations, read as texAround() reads them:
+    // [{ text }, { text, tex: { latex, display } }, ...] - each run's text exactly as it is in the piece,
+    // delimiters and all, so joining the runs gives the piece back unchanged.
+    function texPieces( text ) {
+        var pieces = [], i = 0, from = 0;
+        while ( i < text.length ) {
+            var c = text.charAt( i );
+            if ( c === '\\' ) { i += 2; continue; }
+            if ( c !== '$' ) { i++; continue; }
+            var display = text.charAt( i + 1 ) === '$', size = display ? 2 : 1, j = i + size;
+            while ( j < text.length && !( text.charAt( j ) === '$' && ( !display || text.charAt( j + 1 ) === '$' ) ) ) {
+                j += text.charAt( j ) === '\\' ? 2 : 1;
+            }
+            if ( j >= text.length ) break;
+            var end = j + size, latex = text.slice( i + size, j ).trim();
+            if ( latex ) {
+                if ( i > from ) pieces.push( { text: text.slice( from, i ) } );
+                pieces.push( { text: text.slice( i, end ), tex: { latex: latex, display: display } } );
+                from = end;
+            }
+            i = end;
+        }
+        if ( from < text.length ) pieces.push( { text: text.slice( from ) } );
+        return pieces;
+    }
+
+    // The LaTeX equation in `source` (all of it, delimiters and all, as texPieces() gives it), or null.
+    function texOfSource( source ) {
+        var pieces = texPieces( source || '' );
+        return pieces.length === 1 && pieces[ 0 ].tex ? pieces[ 0 ].tex : null;
+    }
+
+    // How LaTeX shown as maths sits in the editing area (see texAsMaths in the plugin): a display
+    // equation on a line of its own, as fxTeX puts it on the page that shows the content.
+    var TEX_SKIP = { CODE: 1, PRE: 1, SCRIPT: 1, STYLE: 1, TEXTAREA: 1, MATH: 1, SVG: 1 };
+    var texStylesInjected = false;
+    function injectTexStylesOnce() {
+        if ( texStylesInjected ) return;
+        texStylesInjected = true;
+        var style = document.createElement( 'style' );
+        style.textContent = '.cc-tex { cursor: default; } .cc-tex-display { display: block; text-align: center; margin: 0.5em 0; }' +
+            ' .cc-tex-math + .cc-tex-src { display: none; }';
+        document.head.appendChild( style );
+    }
+
     function escapeHtml( s ) {
         return String( s )
             .replace( /&/g, '&amp;' ).replace( /</g, '&lt;' )
@@ -1061,6 +1106,84 @@
         var mathmlCssUrl = opts.eqneditorMathmlCssUrl || ( origin + '/fxtex.css' );
 
         var apiReady = loadScriptOnce( scriptUrl );
+
+        // LaTeX in the text - $...$ and $$...$$, as fxTeX reads them on the page that shows the
+        // content - shown as the maths it is while it is edited (design.latexAsMaths, on unless set
+        // false). What is saved is the LaTeX, exactly as it was.
+        //
+        // As content is set or inserted, each equation in the text becomes a locked span holding its
+        // text (<span class="cc-tex" contenteditable="false"><span class="cc-tex-src">$x$</span></span>,
+        // fr-deletable so Backspace takes it whole), and its maths is drawn in beside the text, which
+        // is then hidden. As Froala reads the content out (html.get), each span is its text again.
+        var texAsMaths = design.latexAsMaths !== false;
+        function wrapTex() {
+            if ( !texAsMaths ) return;
+            var doc = editor.el.ownerDocument;
+            var walker = doc.createTreeWalker( editor.el, NodeFilter.SHOW_TEXT, {
+                acceptNode: function ( node ) {
+                    if ( node.nodeValue.indexOf( '$' ) === -1 ) return NodeFilter.FILTER_REJECT;
+                    for ( var p = node.parentNode; p && p !== editor.el; p = p.parentNode ) {
+                        if ( TEX_SKIP[ p.nodeName.toUpperCase() ] || ( p.classList && p.classList.contains( 'cc-tex' ) ) ) return NodeFilter.FILTER_REJECT;
+                    }
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            } );
+            var found = [];
+            while ( walker.nextNode() ) found.push( walker.currentNode );
+            found.forEach( function ( node ) {
+                var pieces = texPieces( node.nodeValue );
+                if ( !pieces.some( function ( piece ) { return piece.tex; } ) ) return;
+                pieces.forEach( function ( piece ) {
+                    if ( !piece.tex ) {
+                        node.parentNode.insertBefore( doc.createTextNode( piece.text ), node );
+                        return;
+                    }
+                    var span = doc.createElement( 'span' );
+                    span.className = 'cc-tex fr-deletable' + ( piece.tex.display ? ' cc-tex-display' : '' );
+                    span.setAttribute( 'contenteditable', 'false' );
+                    var source = doc.createElement( 'span' );
+                    source.className = 'cc-tex-src';
+                    source.textContent = piece.text;
+                    span.appendChild( source );
+                    node.parentNode.insertBefore( span, node );
+                } );
+                node.parentNode.removeChild( node );
+            } );
+            drawTex();
+        }
+        function drawTex() {
+            var spans = Array.prototype.filter.call( editor.el.querySelectorAll( 'span.cc-tex' ), function ( span ) {
+                return !span.querySelector( '.cc-tex-math' );
+            } );
+            if ( !spans.length ) return;
+            injectTexStylesOnce();
+            apiReady.then( function () { return ensureInit( licence ); } ).then( function () {
+                spans.forEach( function ( span ) {
+                    if ( !editor.el.contains( span ) || span.querySelector( '.cc-tex-math' ) ) return;
+                    var src = span.querySelector( '.cc-tex-src' );
+                    var tex = texOfSource( src ? src.textContent : '' );
+                    var mathml = '';
+                    try { mathml = tex ? EqEditor.Output.latexToMathML( tex.latex, false, !tex.display ) : ''; } catch ( e ) { mathml = ''; }
+                    // Without fxTeX Pro (no licence), its error: the LaTeX stays as it is.
+                    if ( !mathml || mathml.indexOf( '<merror' ) !== -1 ) return;
+                    var math = span.ownerDocument.createElement( 'span' );
+                    math.className = 'cc-tex-math';
+                    math.innerHTML = mathml;
+                    span.insertBefore( math, span.firstChild );
+                } );
+            } );
+        }
+        // Each span its text again, in what Froala reads out - so in what is saved, and in undo.
+        function unwrapTex( html ) {
+            if ( typeof html !== 'string' || html.indexOf( 'cc-tex' ) === -1 ) return html;
+            var box = document.createElement( 'template' );
+            box.innerHTML = html;
+            Array.prototype.forEach.call( box.content.querySelectorAll( 'span.cc-tex' ), function ( span ) {
+                var src = span.querySelector( '.cc-tex-src' );
+                span.parentNode.replaceChild( document.createTextNode( src ? src.textContent : '' ), span );
+            } );
+            return box.innerHTML;
+        }
         loadCssOnce( cssUrl );
         loadFxtexStyleOnce( mathmlCssUrl, ( opts.iframe && editor.iframe_document ) || document );
 
@@ -1188,6 +1311,7 @@
                 range.deleteContents();
                 range.insertNode( parts );
                 lockEquations();
+                wrapTex();
                 editor.events.trigger( 'contentChanged' );
                 return;
             }
@@ -1202,6 +1326,7 @@
             while ( box.firstChild ) target.parentNode.insertBefore( box.firstChild, target );
             target.parentNode.removeChild( target );
             lockEquations();
+            wrapTex();
             editor.events.trigger( 'contentChanged' );
         }
 
@@ -1320,6 +1445,15 @@
             editor.events.on( 'html.beforeGet', unlockEquations );
             editor.events.on( 'html.afterGet', lockEquations );
 
+            // LaTeX shown as maths (see wrapTex()), saved as the LaTeX.
+            wrapTex();
+            editor.events.on( 'html.set', wrapTex );
+            editor.events.on( 'html.inserted', wrapTex );
+            editor.events.on( 'html.get', unwrapTex );
+            // Undo and redo put back a snapshot of the content without its usual events.
+            editor.events.on( 'commands.undo', wrapTex );
+            editor.events.on( 'commands.redo', wrapTex );
+
             // Click an existing equation to edit it again - reads the LaTeX back the same two
             // ways as the TinyMCE and CKEditor 5 plugins, but on a single click, not a double
             // one, unlike them. Froala shows its own resize/align popup directly over an image
@@ -1333,6 +1467,8 @@
             editor.events.on( 'mousedown', function ( e ) {
                 var target = e.target;
                 if ( !target ) return;
+                // LaTeX shown as maths opens on a double-click (below), as its text does.
+                if ( target.closest && target.closest( '.cc-tex' ) ) return;
 
                 if ( target.nodeName.toLowerCase() === 'img' ) {
                     var match = target.src.match( /(gif|svg|png)\.image\?(.*)/ );
@@ -1361,6 +1497,17 @@
             // to stay free for putting the caret in it): the double-click has selected a word of it,
             // and the $...$ or $$...$$ round that is the equation.
             editor.events.$on( editor.$el, 'dblclick', function ( e ) {
+                // LaTeX shown as maths: its own text says what it is.
+                var texSpan = e.target && e.target.closest && e.target.closest( 'span.cc-tex' );
+                if ( texSpan ) {
+                    var texSrc = texSpan.querySelector( '.cc-tex-src' );
+                    var texFound = texOfSource( texSrc ? texSrc.textContent : '' );
+                    if ( texFound ) {
+                        e.preventDefault();
+                        showDialog( texFound.latex, texSpan, 'latex', !texFound.display );
+                    }
+                    return;
+                }
                 if ( e.target && e.target.closest && e.target.closest( 'math, img' ) ) return;
                 var selection = editor.el.ownerDocument.getSelection();
                 var range = selection && selection.rangeCount ? selection.getRangeAt( 0 ) : null;
