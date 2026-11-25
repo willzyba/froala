@@ -650,6 +650,8 @@
                 insertAs.setAttribute( 'data-cc-remembered', '' );
             }
             insertAs.addEventListener( 'change', function () { prefs.insertAs = insertAs.value; save(); } );
+            // The inserted image's size, beside it while it is set to an image - see addImageSize().
+            addImageSize( insertAs, prefs, save, parts.sizeSelect );
         }
 
         stackPanes( root, prefs, save );
@@ -675,6 +677,71 @@
                 } );
             }
         }
+    }
+
+    // The size of an inserted image (SVG or PNG), in px: the height of its text, as a font size - the
+    // image server draws a normal equation at IMAGE_PX to the em, so an image is given IMAGE_PX px for
+    // each em of its natural size, times this over IMAGE_PX. Chosen on a slider just before the Insert
+    // as menu, shown only while that is set to an image, and remembered as prefs.imageSize; it takes
+    // over from the design's relative Size menu (`scaleSelect`), which then goes, as that is for MathML.
+    var IMAGE_PX = 16, IMAGE_PX_MIN = 8, IMAGE_PX_MAX = 64;
+    function isImageFormat( format ) { return format === 'svg' || format === 'png'; }
+    function addImageSize( insertAs, prefs, save, scaleSelect ) {
+        if ( !insertAs || !insertAs.parentNode || insertAs.parentNode.querySelector( '.cc-eqn-image-size' ) ) return;
+        var label = document.createElement( 'label' );
+        label.className = 'cc-eqn-image-size';
+        label.title = 'The size of the inserted image: the height of its text, in pixels';
+        label.innerHTML = '<span>Size</span><input type="range" min="' + IMAGE_PX_MIN + '" max="' + IMAGE_PX_MAX + '" step="1" ' +
+            'aria-label="Image size, in pixels"><output></output>';
+        insertAs.parentNode.insertBefore( label, insertAs );
+        var range = label.querySelector( 'input' ), shown = label.querySelector( 'output' );
+        var set = function ( px ) {
+            px = Math.round( Math.min( IMAGE_PX_MAX, Math.max( IMAGE_PX_MIN, Number( px ) || IMAGE_PX ) ) );
+            range.value = px;
+            shown.textContent = px + 'px';
+            return px;
+        };
+        var show = function ( el, on ) {
+            if ( !el ) return;
+            if ( on ) el.style.removeProperty( 'display' );
+            else el.style.setProperty( 'display', 'none', 'important' );
+        };
+        var follow = function () {
+            var image = isImageFormat( insertAs.value );
+            show( label, image );
+            range.disabled = !image;
+            show( scaleSelect, !image );
+        };
+        set( prefs.imageSize );
+        range.addEventListener( 'input', function () { prefs.imageSize = set( range.value ); } );
+        range.addEventListener( 'change', save );
+        insertAs.addEventListener( 'change', follow );
+        follow();
+        // For the host: px(), the size chosen; start(px), as the dialog opens, shows an equation being
+        // edited at its own size (not remembered), else the remembered one, and follows Insert as, which
+        // the host may have set itself.
+        label.ccImageSize = {
+            px: function () { return set( range.value ); },
+            start: function ( px ) { set( px > 0 ? px : prefs.imageSize ); follow(); }
+        };
+    }
+    // The image size slider in `root` (see addImageSize()), or null.
+    function imageSizeIn( root ) {
+        var label = root && root.querySelector( '.cc-eqn-image-size' );
+        return label && label.ccImageSize || null;
+    }
+    // An image's size from Output.imageSize() - in em, at a scale of 1 - at `px` (see IMAGE_PX).
+    function imagePxSize( size, px ) {
+        var at = function ( em ) { return Math.round( parseFloat( em ) * px * 10 ) / 10 + 'px'; };
+        return size ? { width: at( size.width ), height: at( size.height ) } : null;
+    }
+    // The size an image on the page was inserted at, in px (see IMAGE_PX): from its width - a style in px
+    // or (inserted before the slider) em, or a width attribute - against its natural width, so it must have
+    // loaded. 0 if unknown.
+    function imagePxOf( img ) {
+        if ( !img || !img.nodeName || img.nodeName.toLowerCase() !== 'img' || !img.naturalWidth ) return 0;
+        var width = /^([\d.]+)(px|em)$/.exec( img.style.width || '' ) || /^([\d.]+)()$/.exec( img.getAttribute( 'width' ) || '' );
+        return width ? Math.round( parseFloat( width[ 1 ] ) * ( width[ 2 ] === 'em' ? IMAGE_PX : 1 ) * IMAGE_PX / img.naturalWidth ) : 0;
     }
 
     // The LaTeX markup above the maths view while LaTeX is on, rather than in its place, with a bar
@@ -926,6 +993,13 @@
             '.cc-toolbar-size input { width: 72px !important; min-width: 36px !important; flex: 0 1 72px !important; margin: 0 !important; padding: 0 !important; ' +
                 'accent-color: var(--cc-accent, #003794) !important; }' +
             '.cc-toolbar-size output { min-width: 3em !important; text-align: right !important; }' +
+            // The inserted image's size, beside Insert as (addImageSize()).
+            '.cc-eqn-image-size { display: inline-flex !important; align-items: center !important; gap: 6px !important; margin: 0 !important; padding: 0 !important; ' +
+                'font: inherit !important; color: #54647c !important; cursor: pointer !important; white-space: nowrap !important; user-select: none !important; }' +
+            '.cc-eqn-image-size span, .cc-eqn-image-size output { font: inherit !important; color: inherit !important; }' +
+            '.cc-eqn-image-size input { width: 96px !important; min-width: 48px !important; flex: 0 1 96px !important; height: auto !important; margin: 0 !important; ' +
+                'padding: 0 !important; border: 0 !important; background: none !important; accent-color: var(--cc-accent, #003794) !important; cursor: pointer !important; }' +
+            '.cc-eqn-image-size output { min-width: 2.8em !important; text-align: right !important; }' +
             // The bar between the LaTeX markup and the maths view, while both show (stackPanes()).
             '.cc-eqn-panes-split { display: none !important; }' +
             '.cc-eqn-both > .cc-eqn-panes-split { display: block !important; flex: 0 0 auto !important; height: 9px !important; margin: 1px 0 !important; ' +
@@ -1241,7 +1315,8 @@
 
             addEditorControls( document.getElementById( ids.root ), design, { textArea: eqTextArea, mathView: eqMathView, output: eqOutput,
                 latexToggle: latexToggle, inlineToggle: document.querySelector( '#' + ids.overlay + ' input[data-inline-toggle]' ),
-                insertSelect: document.querySelector( '#' + ids.overlay + ' [data-insert-mode]' ) } );
+                insertSelect: document.querySelector( '#' + ids.overlay + ' [data-insert-mode]' ),
+                sizeSelect: document.querySelector( '#' + ids.overlay + ' [data-size]' ) } );
             applyDesign( document.getElementById( ids.root ), design, latexToggle,
                 document.querySelector( '#' + ids.overlay + ' [data-insert-mode]' ) );
         }
@@ -1255,10 +1330,13 @@
                 return escapeHtml( texOf( latex, document.querySelector( '#' + ids.overlay + ' input[data-inline-toggle]' ).checked ) );
             }
             if ( mode === 'svg' ) {
+                // At the size on the slider (see addImageSize()), in px; an API without it sizes it in em.
+                var sizer = imageSizeIn( overlay ), px = sizer ? sizer.px() : 0;
                 return '<img class="fxtex" src="' + escapeHtml( outputCode( eqOutput, 'url' ) ) + '" ' +
                     'alt="' + escapeHtml( latex ) + '" referrerpolicy="origin"' + sizeImage( eqOutput, function ( mark, size ) {
                         var img = editor.el && editor.el.querySelector( 'img[data-cc-size="' + mark + '"]' );
                         if ( !img ) return;
+                        if ( size && px ) size = imagePxSize( size, px );
                         if ( size ) { img.style.width = size.width; img.style.height = size.height; }
                         img.removeAttribute( 'data-cc-size' );
                     } ) + '>';
@@ -1378,7 +1456,10 @@
                 var current = eqTextArea ? eqTextArea.getTextArea().textContent.trim() : '';
                 if ( current ) {
                     editor.undo.saveStep();
-                    if ( eqOutput.setScale || eqOutput.setEquationSize ) ( eqOutput.setScale || eqOutput.setEquationSize ).call( eqOutput, sizeSelect ? Number( sizeSelect.value ) / 100 : startSize );
+                    // An image takes its size from the slider instead (see buildInsert()).
+                    var scale = imageSizeIn( overlay ) && isImageFormat( modeSelect.value ) ? 1
+                        : sizeSelect ? Number( sizeSelect.value ) / 100 : startSize;
+                    if ( eqOutput.setScale || eqOutput.setEquationSize ) ( eqOutput.setScale || eqOutput.setEquationSize ).call( eqOutput, scale );
                     insertEquation( buildInsert( current, modeSelect.value ), el );
                     editor.undo.saveStep();
                     eqTextArea.pushToHistory();
@@ -1400,6 +1481,8 @@
                 startInline( overlay.querySelector( 'input[data-inline-toggle]' ), inline, applyInline );
                 startSize = sizeOf( el && el.nodeType ? el : null );
                 showSize( sizeSelect, startSize );
+                var sizer = imageSizeIn( overlay );
+                if ( sizer ) sizer.start( imagePxOf( el && el.nodeType ? el : null ) );
                 eqTextArea.clear();
                 if ( latex ) eqTextArea.insert( latex, latex.length );
                 eqTextArea.notifyOutputs();
